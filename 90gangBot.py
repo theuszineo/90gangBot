@@ -16,10 +16,10 @@ async def ajuda(ctx):
     await ctx.channel.purge(limit=1)
     await ctx.send('''```\nCommands list:
     /ping, Show you ping in ms.
-    /convite, Public Envite for a guild.
-    /clear quantidade, apaga mensagens em massa - ONLY ADMINISTRATOR.
-    /kick @member <reason>, Kicka membros do servidor - ONLY WITH KICK PERMISSION.
-    /ban @member <reason>, Ban membros do servidor - ONLY WITH BAN PERMISSION.
+    /envite, Public Envite for a guild.
+    /clear amount, delete messages - ONLY ADMINISTRATOR.
+    /kick @member <reason>, kick members from serve - ONLY WITH KICK PERMISSION.
+    /ban @member <reason>, Ban members from serve - ONLY WITH BAN PERMISSION.
     /unban nome#tag, Unban banned menbers, ONLY WITH BAN PERMISSION.```''')
 
 
@@ -30,16 +30,16 @@ async def ping(ctx):
 
 
 @client.command()
-@commands.has_role  ('owner')
+@commands.has_role('owner')
 async def envite(ctx):
     await ctx.channel.purge(limit=1)
-    embed = discord.Embed(title="convite", colour=discord.Colour(0x75bc48), url="https://discord.gg/HSC4srX", description="Convide amigos e chame a rapaziada. ```\n https://discord.gg/HSC4srX```", timestamp=datetime.datetime.utcfromtimestamp(1589671517))
+    embed = discord.Embed(title="envite", colour=discord.Colour(0x75bc48), url="https://discord.gg/HSC4srX", description="Invite your friends. ```\n https://discord.gg/HSC4srX```", timestamp=datetime.datetime.utcfromtimestamp(1589671517))
 
     embed.set_thumbnail(url=ctx.guild.icon_url)
     embed.set_author(name=f"{ctx.message.author}", url="https://discordapp.com", icon_url=ctx.guild.icon_url)
     embed.set_footer(text="footer text", icon_url=ctx.guild.icon_url)
 
-    embed.add_field(name="O convite e livre", value="CALL YOU ..")
+    embed.add_field(name="everyone can use", value="CALL YOU ..")
 
     await ctx.send(embed=embed)
 
@@ -54,7 +54,7 @@ async def clear(ctx, amount=6):
 @has_permissions(kick_members=True)
 async def kick(ctx, user: discord.Member, *, reason=None):
     await ctx.channel.purge(limit=1)
-    await ctx.send(f'```diff\n-membro: {user}, has Kicked\n Razão: <{reason}>. by @{ctx.message.author}```')
+    await ctx.send(f'```diff\n-membro: {user}, has Kicked\nReason: <{reason}>. by @{ctx.message.author}```')
     await user.kick(reason=reason)
 
 
