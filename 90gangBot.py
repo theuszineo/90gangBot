@@ -3,7 +3,44 @@ from discord.ext import commands, tasks
 from discord.ext.commands import has_permissions
 from itertools import cycle
 import datetime
+import asyncio
+import time
+import json
+from os.path import dirname, realpath, isfile
 
+
+class json_gerenciar():
+    def __init__(self):
+        self.path = dirname(realpath(__file__)) + '/'
+    
+    def criar_json(self, file):
+        data = {"ids": []}
+        path_data = self.path + file
+        if not isfile(path_data):
+            with open(path_data, 'w') as f:
+                json.dump(data, f, indent=4)
+            return True
+        else:
+            return False
+        
+    def ler_json(self, file):
+        if isfile(self.path + file):
+            with open(self.path + file, "r") as b:
+                data = json.load(b)
+            return data
+        else:
+            return False
+    def adicionar_json(self, file, nome='ids', append=0):
+        if isfile(self.path + file):
+            with open(self.path + file, "r") as b:
+                data = json.load(b)
+            data[nome].append(append)
+            print(data)
+            with open(self.path + file, "w") as o:
+                json.dump(data, o, indent=4)
+
+jfile = json_gerenciar()
+jfile.criar_json('messageid.json')
 #prefixo de comando.
 client = commands.Bot(command_prefix = '/90')
 #remover o comando help padrão do bot.
@@ -21,11 +58,53 @@ async def on_ready():
 
 #envia o error para o chat.
 @client.event
+@client.event
 async def on_command_error(ctx, error):
-    if str(error) == 'user is a required argument that is missing.':
-        await ctx.channel.send('você não marcou o usuario use:\n comando @nome...')
-    else:
-        await ctx.send(error)
+    if isinstance(error, commands.CommandNotFound):
+       await ctx.send('```comando não existe ou errado```')
+    if isinstance(error, commands.MissingPermissions):
+        await ctx.send('```Você não pode executar esse comando devido a falta de permissão neste servidor```')
+    if isinstance(error, commands.BotMissingPermissions):
+        await ctx.send('```o bot não pode executar esse comando devido a falta de permissão neste servidor```')
+
+#quando a mensage cujo o id esta no arquivo que ira ser criado a o iniciar o codigo sera adicionado um cargo com nome da reação, emoji.
+@client.event
+async def on_raw_reaction_add(payload):
+    message = payload.message_id
+    for msgid in jfile.ler_json('messageid.json')['ids']:
+        if int(msgid) == int(message):
+            guild_id = payload.guild_id
+            guild = discord.utils.find(lambda g : g.id == guild_id, client.guilds)
+            role = discord.utils.get(guild.roles, name=payload.emoji.name)
+        
+            if role is not None:
+                member = discord.utils.find(lambda m : m.id == payload.user_id, guild.members)
+                if member is not None:
+                    await member.add_roles(role)
+                else:
+                    print('error')
+            else:
+                print('error2')
+
+#quando a mensage cujo o id esta no arquivo que ira ser criado a o iniciar o codigo sera remover um cargo com nome da reação, emoji.
+@client.event
+async def on_raw_reaction_remove(payload):
+    message = payload.message_id
+    for msgid in jfile.ler_json('messageid.json')['ids']:
+        if int(msgid) == int(message):
+            guild_id = payload.guild_id
+            guild = discord.utils.find(lambda g : g.id == guild_id, client.guilds)
+            role = discord.utils.get(guild.roles, name=payload.emoji.name)
+        
+            if role is not None:
+                member = discord.utils.find(lambda m : m.id == payload.user_id, guild.members)
+                if member is not None:
+                    await member.remove_roles(role)
+                else:
+                    print('error')
+            else:
+                print('error2')
+
 
 #loop de 10 segundos para trocar o que o bot esta jogando.
 @tasks.loop(seconds=10)
@@ -148,7 +227,85 @@ async def user_info(ctx, user: discord.Member):
 
     await ctx.send(content=f"{ctx.author.mention}", embed=embed)
 
- 
+#adicionar o id da mensagem no arquivo "messageid.json".
+@client.command()
+@commands.has_permissions(manage_roles=True)
+async def rolemsgid(ctx, append: int):
+    jfile.adicionar_json('messageid.json', append=append)
+   
+	
+#mutar membros.
+@client.command()
+@commands.has_guild_permissions(mute_members=True)
+async def mutar(ctx, user: discord.Member, tempo: int, operator:str = 's', *, razão:str = 'mutado'):
+    print(str(operator)[0])
+    if str(operator)[0] == str('s'):
+        temporador = tempo
+    elif str(operator)[0] == str('m'):
+        temporador = tempo * 60
+    elif str(operator)[0] =='h':
+        temporador = tempo * 60 * 60
+    elif str(operator)[0] == str('S'):
+        temporador = tempo
+    elif str(operator)[0] == str('M'):
+        temporador = tempo * 60
+    elif str(operator)[0] =='h':
+        temporador = tempo * 60 * 60
+    else:
+        temporador = tempo
+
+    roles = await ctx.guild.fetch_roles()
+    count = False
+    for role in roles:
+        if role.name == "muted":
+            count = True
+        if count:
+            role = role
+    if not count:
+        perms = discord.Permissions(speak=False, send_messages=False)
+        muted = await ctx.guild.create_role(name='muted')
+        for channel in ctx.guild.channels:
+            await channel.set_permissions(muted, send_messages=False,
+												speak=False)
+
+
+    role = discord.utils.get(ctx.guild.roles, name='muted')
+    await user.add_roles(role, reason=razão)
+    embed = discord.Embed(title="usuario mutado", colour=discord.Colour(0xf8db63), description=f"{user} foi mutado por: {razão}")
+    embed.set_author(name=f"{client.user.name}", url="https://discordapp.com", icon_url=client.user.avatar_url)
+    embed.add_field(name="tempo", value=f"{temporador}{operator}.", inline=True)
+    embed.add_field(name="servidor", value=f"{ctx.guild}.", inline=True)
+
+    if str(ctx.guild.system_channel) != 'none':
+        await ctx.guild.system_channel.send(embed=embed)
+    await ctx.send(embed=embed)
+
+    await asyncio.sleep(temporador)
+
+    embed = discord.Embed(title="usuario desmutado", colour=discord.Colour(0xf8db63), description=f"{user} foi desmutado por: o tempo acabou")
+    embed.set_author(name=f"{client.user.name}", url="https://discordapp.com", icon_url=client.user.avatar_url)
+    embed.add_field(name="servidor", value=f"{ctx.guild}.", inline=True)
+
+    if str(ctx.guild.system_channel) != 'none':
+        await ctx.guild.system_channel.send(embed=embed)
+    await ctx.send(embed=embed)
+    await user.remove_roles(role, reason='tempo acabou!')
+
+#erros que podem acontecer no comando de mutar
+@mutar.error
+async def mutar_error(ctx, error):
+    if isinstance(error, commands.MissingRequiredArgument):
+        print(error)
+        if str(error) == 'user is a required argument that is missing.':
+            await ctx.send('esqueceu de marcar o usuario')
+        elif str(error) == 'tempo is a required argument that is missing.':
+            await ctx.send('esqueceu de botar o tempo')
+    elif isinstance(error, commands.ConversionError):
+        if str(error) == 'Converting to "int" failed for parameter "tempo".':
+            await ctx.send('falha ao converter o tempo para inteiro, use numeros')
+    else: 
+        print(error)
+
 
 #esse e o credito do codigo caso queira dar alguma divulgação para mim.
 @client.command()
@@ -172,7 +329,7 @@ async def creditos(ctx):
 
     await ctx.send(embed=embed)
 
-comando para limpar chat reservado apenás pra quem tem a permissão de gerenciar mensagens, limpar quantidade.
+#comando para limpar chat reservado apenás pra quem tem a permissão de gerenciar mensagens, limpar quantidade.
 @client.command()
 @commands.has_permissions(manage_messages=True)
 async def limpar(ctx, amount=6):
